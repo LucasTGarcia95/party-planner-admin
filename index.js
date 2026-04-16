@@ -1,6 +1,6 @@
 // === Constants ===
 const BASE = "https://fsa-crud-2aa9294fe819.herokuapp.com/api";
-const COHORT = ""; // Make sure to change this!
+const COHORT = "/2602-Lucas"; // Make sure to change this!
 const API = BASE + COHORT;
 
 // === State ===
@@ -56,6 +56,37 @@ async function getGuests() {
     console.error(e);
   }
 }
+async function createParty(party) {
+  try {
+    const response = await fetch(API + "/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(party),
+    });
+
+    const result = await response.json();
+    parties.push(result.data); // update state
+    render();
+  } catch (e) {
+    console.error("Error creating party:", e);
+  }
+}
+async function deleteParty(id) {
+  try {
+    await fetch(API + "/events/" + id, { method: "DELETE" });
+
+    // remove from state
+    parties = parties.filter((p) => p.id !== id);
+
+    if (selectedParty?.id === id) {
+      selectedParty = null;
+    }
+
+    render();
+  } catch (e) {
+    console.error("Error deleting party:", e);
+  }
+}
 
 // === Components ===
 
@@ -94,15 +125,21 @@ function SelectedParty() {
   }
 
   const $party = document.createElement("section");
-  $party.innerHTML = `
+  $party.innerHTML = /* html */ `
     <h3>${selectedParty.name} #${selectedParty.id}</h3>
     <time datetime="${selectedParty.date}">
       ${selectedParty.date.slice(0, 10)}
     </time>
     <address>${selectedParty.location}</address>
     <p>${selectedParty.description}</p>
+    <button class="delete-btn">Delete Party</button>
     <GuestList></GuestList>
   `;
+
+  $party.querySelector(".delete-btn").addEventListener("click", () => {
+    deleteParty(selectedParty.id);
+  });
+
   $party.querySelector("GuestList").replaceWith(GuestList());
 
   return $party;
@@ -113,8 +150,8 @@ function GuestList() {
   const $ul = document.createElement("ul");
   const guestsAtParty = guests.filter((guest) =>
     rsvps.find(
-      (rsvp) => rsvp.guestId === guest.id && rsvp.eventId === selectedParty.id
-    )
+      (rsvp) => rsvp.guestId === guest.id && rsvp.eventId === selectedParty.id,
+    ),
   );
 
   // Simple components can also be created anonymously:
@@ -127,15 +164,46 @@ function GuestList() {
 
   return $ul;
 }
+function PartyForm() {
+  const $form = document.createElement("form");
+
+  $form.innerHTML = `
+    <input name="name" placeholder="Party Name" required />
+    <textarea name="description" placeholder="Description" required></textarea>
+    <input name="date" type="date" required />
+    <input name="location" placeholder="Location" required />
+    <button type="submit">Add Party</button>
+  `;
+
+  $form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData($form);
+
+    const isoDate = new Date(formData.get("date")).toISOString();
+
+    await createParty({
+      name: formData.get("name"),
+      description: formData.get("description"),
+      date: isoDate,
+      location: formData.get("location"),
+    });
+
+    $form.reset();
+  });
+
+  return $form;
+}
 
 // === Render ===
 function render() {
   const $app = document.querySelector("#app");
-  $app.innerHTML = `
+  $app.innerHTML = /* html */ `
     <h1>Party Planner</h1>
     <main>
       <section>
         <h2>Upcoming Parties</h2>
+        <PartyForm></PartyForm>
         <PartyList></PartyList>
       </section>
       <section id="selected">
@@ -145,6 +213,7 @@ function render() {
     </main>
   `;
 
+  $app.querySelector("PartyForm").replaceWith(PartyForm());
   $app.querySelector("PartyList").replaceWith(PartyList());
   $app.querySelector("SelectedParty").replaceWith(SelectedParty());
 }
